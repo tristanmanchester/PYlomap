@@ -1,4 +1,4 @@
-# Heatmap Generation from MicroOrganism Data - QUIME 2 AddOn
+# Heatmap Generation from MicroOrganism Data
 # By William Pearson and Hannah Eccleston
 
 #Import Packages
