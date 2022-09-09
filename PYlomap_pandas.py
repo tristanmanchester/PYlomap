@@ -11,9 +11,6 @@ class SampleInformation:
         self.sample_name = sample_name
         self.name_override = None
         self.microorganism_tree = []
-        self.excel_sheet = None
-
-    def determine_microorganisms(self):
         # create pandas dataframe with all sample's info
         self.excel_sheet = pd.read_excel(self.workbook_name, skiprows=2, sheet_name=self.worksheet_name,
                                          names=['domain', 'phylum', 'classification',
@@ -30,7 +27,8 @@ def make_heat_map(datasets, line_width_override=0, percent_to_ignore=0, max_valu
             dataset.excel_sheet.ffill(axis='columns').drop(['domain', 'phylum', 'classification', 'order', 'family'],
                                                            axis=1).rename({'relative_abundance': dataset.sample_name,
                                                                            'genus': 'microbe'}, axis=1).set_index(
-                'microbe'))  # create a list of microbes with the highest order name and their RA from the dataset
+                'microbe'))
+        # ^create a list of microbes with the highest order name and their RA from the dataset
         dataset_list.append(microbe_list)  # add the microbe RA list to the list of datasets
 
     dataframe = dataset_list[0]  # create a dataframe with the first dataset in the list
@@ -47,7 +45,7 @@ def make_heat_map(datasets, line_width_override=0, percent_to_ignore=0, max_valu
 
 def heatmap_plot(data, line_width_overide, max_value):
     sns.set(font_scale=1.)  # for increasing font size
-    plt.figure(figsize=(10, 10), constrained_layout=True, facecolor=None,
+    plt.figure(figsize=(15, 10), constrained_layout=True, facecolor=None,
                edgecolor=None)  # set figure size, constrain layout to fit size, back background transparent
     p = sns.heatmap(data, annot=True, linewidths=line_width_overide, cmap="YlGnBu", yticklabels=True,
                     vmax=max_value)  # vmax is the highest value displayed, all higher values take the same colour
@@ -56,13 +54,11 @@ def heatmap_plot(data, line_width_overide, max_value):
     # plt.savefig('heatmap.png', dpi=100, pad_inches=1, transparent=True)
 
 
-dataSet1 = SampleInformation("/content/drive/MyDrive/pylomap/data.xlsx", "Sheet1", "sample1")
-dataSet2 = SampleInformation("/content/drive/MyDrive/pylomap/data.xlsx", "Sheet1", "sample2")
-dataSet3 = SampleInformation("/content/drive/MyDrive/pylomap/data.xlsx", "Sheet1", "sample3")
-dataSet4 = SampleInformation("/content/drive/MyDrive/pylomap/data.xlsx", "Sheet1", "sample4")
-dataSet1.determine_microorganisms()
-dataSet2.determine_microorganisms()
-dataSet3.determine_microorganisms()
-dataSet4.determine_microorganisms()
+dataSet1 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL02E")
+dataSet2 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL02G")
+dataSet3 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL05E")
+dataSet4 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL05G")
+dataSet5 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL09E")
+dataSet6 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL09G")
 
-make_heat_map([dataSet1, dataSet2, dataSet3, dataSet4], percent_to_ignore=1, max_value=15)
+make_heat_map([dataSet1, dataSet2, dataSet3, dataSet4, dataSet5, dataSet6], percent_to_ignore=3, max_value=None)
