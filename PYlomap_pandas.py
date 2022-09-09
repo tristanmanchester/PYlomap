@@ -10,7 +10,6 @@ class SampleInformation:
         self.worksheet_name = worksheet_name
         self.sample_name = sample_name
         self.name_override = None
-        self.microorganism_tree = []
         # create pandas dataframe with all sample's info
         self.excel_sheet = pd.read_excel(self.workbook_name, skiprows=2, sheet_name=self.worksheet_name,
                                          names=['domain', 'phylum', 'classification',
