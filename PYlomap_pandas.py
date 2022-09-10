@@ -1,3 +1,7 @@
+# Heatmap Generation from MicroOrganism Data
+# By William Pearson and Hannah Eccleston
+
+#Import Packages
 import pandas as pd
 import numpy as np
 import seaborn as sns
@@ -53,11 +57,8 @@ def heatmap_plot(data, line_width_overide, max_value):
     # plt.savefig('heatmap.png', dpi=100, pad_inches=1, transparent=True)
 
 
-dataSet1 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL02E")
-dataSet2 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL02G")
-dataSet3 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL05E")
-dataSet4 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL05G")
-dataSet5 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL09E")
-dataSet6 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL09G")
+dataSet1 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "sample_1")
+dataSet2 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "sample_2")
 
-make_heat_map([dataSet1, dataSet2, dataSet3, dataSet4, dataSet5, dataSet6], percent_to_ignore=3, max_value=None)
+
+make_heat_map([dataSet1, dataSet2], percent_to_ignore=2, max_value=None)
