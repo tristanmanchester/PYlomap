@@ -122,13 +122,16 @@ def heatmap_plot(data, max_value, colour_maps, name_override, save_fig=False, sa
     # plt.figure(dpi=300, constrained_layout=True, facecolor=None,
     #            edgecolor=None)  # set figure resolution, constrain layout to fit size, back background transparent
 
-    sns.clustermap(data=data.reset_index(drop=True), annot=True, linewidths=0, cmap="Blues", vmax=max_value,
+    g = sns.clustermap(data=data.reset_index(drop=True), annot=True, linewidths=0, cmap="Blues", vmax=max_value,
                    row_cluster=False, metric="euclidean", method="ward", row_colors=colour_maps,
-                   yticklabels=data.index.values)
+                   yticklabels=data.index.values, cbar_kws={'orientation': 'horizontal'})
+    
+    g.ax_cbar.set_position([g.ax_heatmap.get_position().x0 + 0.25*g.ax_heatmap.get_position().width, 
+                            g.ax_heatmap.get_position().y0-0.09, g.ax_heatmap.get_position().width*0.5, 0.02])
+    g.ax_cbar.set_title('Percent abundance')
 
     if save_fig:
       plt.savefig(save_name, dpi=300)
-
 
 data_set_1 = SampleInformation("data.xlsx", "Sheet1", "sample_1")
 data_set_2 = SampleInformation("data.xlsx", "Sheet1", "sample_2")
