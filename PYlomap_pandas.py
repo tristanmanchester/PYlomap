@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-import matplotlib.gridspec
+
 
 
 class SampleInformation:
@@ -45,7 +45,7 @@ def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None,
         axis=1)] * 100  # choose only the data greater than percent_to_ignore, and multiply by 100 for percentage
     dataframe.index.name = None
     # create a dataframe of joined microbe names
-    joined_names = pd.DataFrame(pd.read_excel('/content/drive/MyDrive/pylomap/F data.xlsx', skiprows=2,
+    joined_names = pd.DataFrame(pd.read_excel('data.xlsx', skiprows=2,
                                               names=['domain', 'phylum', 'classification',
                                                      'order', 'family', 'genus'], header=None,
                                               usecols=[0, 1, 2, 3, 4, 5]).replace('__', np.nan)[
@@ -53,15 +53,15 @@ def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None,
                                      'order', 'family', 'genus']].agg(lambda x: '; '.join(x.dropna().astype(str)),
                                                                       axis=1))
     
-    taxon_dict = pd.read_excel('/content/drive/MyDrive/pylomap/Taxon Dictionary.xlsx') # load taxon dictionary
-    parent = pd.read_csv('/content/drive/MyDrive/pylomap/FL Parent.csv').set_index('sample') # load parent dictionary
+    taxon_dict = pd.read_excel('Taxon Dictionary.xlsx') # load taxon dictionary
+    parent = pd.read_csv('FL Parent.csv').set_index('sample') # load parent dictionary
     list_of_unique_taxons_in_pathway = [] 
     list_of_microbes_with_pathway_confidence = []
     colour_lists = []
     colour_maps = []
     colours_to_use = iter([plt.cm.Pastel1(i) for i in range(9)]) # colours to use for pathways on heatmap 
 
-    function_dictionary = pd.read_excel('/content/drive/MyDrive/pylomap/Function Dictionary.xlsx', skiprows=1) # get function dictionary file 
+    function_dictionary = pd.read_excel('Function Dictionary.xlsx', skiprows=1) # get function dictionary file 
     
     if pathway_search is not None:
       pathways = function_dictionary[['pathway', 'description']].loc[function_dictionary['description'].str.contains(pathway_search, case=False)].pathway.tolist() # get search results from fuction dictionary
@@ -94,7 +94,7 @@ def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None,
                   pathways[i]).fillna('white'))
           
     if latex_table: # checks if user wants a LaTex table of pathways and descriptions
-      if 'pathways_table' in locals(): # checks if pathways are used and creates LaTex table of descriptions
+      if 'pathways_table' in locals(): # checks if pathways are used and creates LaTeX table of descriptions
         pathways_table.columns = pathways_table.columns.str.title()
         with pd.option_context("max_colwidth", 1000):
           print(pathways_table.to_latex(index=False))
@@ -130,18 +130,18 @@ def heatmap_plot(data, max_value, colour_maps, name_override, save_fig=False, sa
       plt.savefig(save_name, dpi=300)
 
 
-data_set_1 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL02E")
-data_set_2 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL02G")
-data_set_3 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL05E")
-data_set_4 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL05G")
-data_set_5 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL09E")
-data_set_6 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL09G")
+data_set_1 = SampleInformation("data.xlsx", "Sheet1", "sample_1")
+data_set_2 = SampleInformation("data.xlsx", "Sheet1", "sample_2")
+data_set_3 = SampleInformation("data.xlsx", "Sheet1", "sample_3")
+data_set_4 = SampleInformation("data.xlsx", "Sheet1", "sample_4")
+data_set_5 = SampleInformation("data.xlsx", "Sheet1", "sample_5")
+data_set_6 = SampleInformation("data.xlsx", "Sheet1", "sample_6")
 
 data_to_plot = [data_set_1, data_set_2, data_set_3, data_set_4, data_set_5, data_set_6] # list of data sets to plot
 percent_to_ignore = 2 # lower bound for percentages displayed on heat map
 max_value = None # max value represented on heat mat: all higher values have same colour
-name_override = None # override sample names on heat map ['sample 1', 'sample 2']
-pathways = ['PWY-5430', 'PWY-5431', 'PWY-7431'] # define a list of custom pathway names ['pathway-1', 'pathway-2']
+name_override = None # override sample names on heat map ['sample_1', 'sample_2']
+pathways = ['pathway_1', 'pathway_2'] # define a list of custom pathway names ['pathway_1', 'pathway_2']
 pathway_search = None # search for a string in pathway descriptions, first 9 matching pathways are plotted 
 save_fig = False # saves heat map as png
 latex_table = False # output LaTex table 
