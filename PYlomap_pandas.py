@@ -92,16 +92,16 @@ def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None,
           colour_maps.append(
               joined_names[0].map(dict(zip(list_of_microbes_with_pathway_confidence[i], colour_lists[i]))).rename(
                   pathways[i]).fillna('white'))
-          
+
+      colour_maps = pd.concat(colour_maps, axis=1) # joins list of colour maps into dataframe
+    else:
+      colour_maps = None
+    
     if latex_table: # checks if user wants a LaTex table of pathways and descriptions
       if 'pathways_table' in locals(): # checks if pathways are used and creates LaTeX table of descriptions
         pathways_table.columns = pathways_table.columns.str.title()
         with pd.option_context("max_colwidth", 1000):
           print(pathways_table.to_latex(index=False))
-
-      colour_maps = pd.concat(colour_maps, axis=1) # joins list of colour maps into dataframe
-    else:
-      colour_maps = None
 
     # Plot Data
     sample_names = []
