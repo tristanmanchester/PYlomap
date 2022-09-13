@@ -2,10 +2,12 @@
 # By William Pearson, Hannah Eccleston, and Tristan Manchester
 
 # Import Packages
+from matplotlib import path
 import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.gridspec
 
 
 class SampleInformation:
@@ -23,8 +25,8 @@ class SampleInformation:
             {self.sample_name: 'relative_abundance'}, axis=1).replace('__', np.nan)
 
 
-def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=[], line_width_override=0,
-                  name_override=None):
+def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None,
+                  name_override=None, pathway_search = None, save_fig = False, latex_table = False):
     dataset_list = []
     for dataset in datasets:
         microbe_list = (
@@ -43,7 +45,7 @@ def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=[], li
         axis=1)] * 100  # choose only the data greater than percent_to_ignore, and multiply by 100 for percentage
     dataframe.index.name = None
     # create a dataframe of joined microbe names
-    joined_names = pd.DataFrame(pd.read_excel('data.xlsx', skiprows=2,
+    joined_names = pd.DataFrame(pd.read_excel('/content/drive/MyDrive/pylomap/F data.xlsx', skiprows=2,
                                               names=['domain', 'phylum', 'classification',
                                                      'order', 'family', 'genus'], header=None,
                                               usecols=[0, 1, 2, 3, 4, 5]).replace('__', np.nan)[
@@ -51,58 +53,97 @@ def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=[], li
                                      'order', 'family', 'genus']].agg(lambda x: '; '.join(x.dropna().astype(str)),
                                                                       axis=1))
     
-    taxon_dict = pd.read_excel('Taxon Dictionary.xlsx') # load taxon dictionary
-    parent = pd.read_csv('Parent.csv').set_index('sample') # load parent dictionary
+    taxon_dict = pd.read_excel('/content/drive/MyDrive/pylomap/Taxon Dictionary.xlsx') # load taxon dictionary
+    parent = pd.read_csv('/content/drive/MyDrive/pylomap/FL Parent.csv').set_index('sample') # load parent dictionary
     list_of_unique_taxons_in_pathway = [] 
     list_of_microbes_with_pathway_confidence = []
     colour_lists = []
     colour_maps = []
-    colours_to_use = iter([plt.cm.Pastel1(i) for i in range(9)]) # colours to use for pathways on heatmap
-    for pathway in pathways: # iterate through pathway argument list
-        list_of_unique_taxons_in_pathway.append(
-            parent.loc[parent['function'].str.contains(pathway)].taxon.unique().tolist()) # makes list of lists unique taxons for each pathway
+    colours_to_use = iter([plt.cm.Pastel1(i) for i in range(9)]) # colours to use for pathways on heatmap 
 
-    for list_of_unique_taxons in list_of_unique_taxons_in_pathway: # iterates through list of lists of unique taxons for each pathway
-        list_of_microbes_with_pathway_confidence.append(
-            taxon_dict.loc[taxon_dict['Feature ID'].str.contains('|'.join(list_of_unique_taxons))].sort_values(
-                'Confidence', axis=0, ascending=False).drop_duplicates('Taxon').Taxon.to_list()) # finds microbes associated with each taxon and removes duplicates
+    function_dictionary = pd.read_excel('/content/drive/MyDrive/pylomap/Function Dictionary.xlsx', skiprows=1) # get function dictionary file 
+    
+    if pathway_search is not None:
+      pathways = function_dictionary[['pathway', 'description']].loc[function_dictionary['description'].str.contains(pathway_search, case=False)].pathway.tolist() # get search results from fuction dictionary
+      pathways_table = function_dictionary[['pathway', 'description']].loc[function_dictionary['description'].str.contains(pathway_search, case=False)] # add pathways and description to table
+      if len(pathways) > 9: # trim pathway search 
+        pathways = pathways[0:9]
 
-    for i in range(len(list_of_microbes_with_pathway_confidence)): # makes a list of each colour
-        colour_lists.append([next(colours_to_use)] * len(list_of_microbes_with_pathway_confidence[i])) 
+    if pathways is not None:
+      pathways_description_list = []
+      for pathway in pathways: # iterate through pathway argument list
+          pathway_with_description = function_dictionary[['pathway', 'description']].loc[function_dictionary['pathway'].str.contains(pathway)]
+          pathways_description_list.append(pathway_with_description) # get pathway with description from function dictionary and add it to a list
 
-    for i in range(len(list_of_microbes_with_pathway_confidence)): # maps colour lists to microbes
-        colour_maps.append(
-            joined_names[0].map(dict(zip(list_of_microbes_with_pathway_confidence[i], colour_lists[i]))).rename(
-                pathways[i]).fillna('white'))
+          list_of_unique_taxons_in_pathway.append(
+              parent.loc[parent['function'].str.contains(pathway)].taxon.unique().tolist()) # makes list of lists unique taxons for each pathway
 
-    colour_maps = pd.concat(colour_maps, axis=1) # joins list of colour maps into dataframe
+      pathways_table = pd.concat(pathways_description_list) # concatinate list of pathway descriptions into dataframe
+
+      for list_of_unique_taxons in list_of_unique_taxons_in_pathway: # iterates through list of lists of unique taxons for each pathway
+          list_of_microbes_with_pathway_confidence.append(
+              taxon_dict.loc[taxon_dict['Feature ID'].str.contains('|'.join(list_of_unique_taxons))].sort_values(
+                  'Confidence', axis=0, ascending=False).drop_duplicates('Taxon').Taxon.to_list()) # finds microbes associated with each taxon and removes duplicates
+
+      for i in range(len(list_of_microbes_with_pathway_confidence)): # makes a list of each colour
+          colour_lists.append([next(colours_to_use)] * len(list_of_microbes_with_pathway_confidence[i])) 
+
+      for i in range(len(list_of_microbes_with_pathway_confidence)): # maps colour lists to microbes
+          colour_maps.append(
+              joined_names[0].map(dict(zip(list_of_microbes_with_pathway_confidence[i], colour_lists[i]))).rename(
+                  pathways[i]).fillna('white'))
+          
+    if latex_table: # checks if user wants a LaTex table of pathways and descriptions
+      if 'pathways_table' in locals(): # checks if pathways are used and creates LaTex table of descriptions
+        pathways_table.columns = pathways_table.columns.str.title()
+        with pd.option_context("max_colwidth", 1000):
+          print(pathways_table.to_latex(index=False))
+
+      colour_maps = pd.concat(colour_maps, axis=1) # joins list of colour maps into dataframe
+    else:
+      colour_maps = None
 
     # Plot Data
-    heatmap_plot(dataframe, line_width_override, max_value, colour_maps, name_override)
+    sample_names = []
+
+    for i in datasets: # create list of sample names for save fig
+      sample_name = i.sample_name
+      sample_names.append(sample_name)
+    save_name = f'[{"; ".join(sample_names)}] - [{"; ".join(pathways)}]' # add list of sample names and list of pathways to save name
+
+    heatmap_plot(dataframe, max_value, colour_maps, name_override, save_fig, save_name)
 
 
-def heatmap_plot(data, line_width_overide, max_value, colour_maps, name_override):
+def heatmap_plot(data, max_value, colour_maps, name_override, save_fig=False, save_name=None):
     if name_override is not None: # override sample names if list of new names argument passed
         data = data.set_axis(name_override, axis=1, inplace=False)
     sns.set(font_scale=1)  # for increasing font size
-    plt.figure(figsize=(15, 10), constrained_layout=True, facecolor=None,
-               edgecolor=None)  # set figure size, constrain layout to fit size, back background transparent
 
-    sns.clustermap(data.reset_index(drop=True), annot=True, linewidths=line_width_overide, cmap="Blues", vmax=max_value,
+    # plt.figure(dpi=300, constrained_layout=True, facecolor=None,
+    #            edgecolor=None)  # set figure resolution, constrain layout to fit size, back background transparent
+
+    sns.clustermap(data=data.reset_index(drop=True), annot=True, linewidths=0, cmap="Blues", vmax=max_value,
                    row_cluster=False, metric="euclidean", method="ward", row_colors=colour_maps,
                    yticklabels=data.index.values)
 
-    plt.show()
+    if save_fig:
+      plt.savefig(save_name, dpi=300)
 
 
-data_set_1 = SampleInformation("data.xlsx", "Sheet1", "A")
-data_set_2 = SampleInformation("data.xlsx", "Sheet1", "B")
-data_set_3 = SampleInformation("data.xlsx", "Sheet1", "C")
-data_set_5 = SampleInformation("data.xlsx", "Sheet1", "E")
-data_set_6 = SampleInformation("data.xlsx", "Sheet1", "F")
+data_set_1 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL02E")
+data_set_2 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL02G")
+data_set_3 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL05E")
+data_set_4 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL05G")
+data_set_5 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL09E")
+data_set_6 = SampleInformation("/content/drive/MyDrive/pylomap/F data.xlsx", "Sheet1", "FL09G")
 
-name_override = ['1', '2', '3', '4', '5', '6']
-pathways = ['PWY-5431', 'PWY-5430', 'SO4ASSIM-PWY', 'PWY-7446']
+data_to_plot = [data_set_1, data_set_2, data_set_3, data_set_4, data_set_5, data_set_6] # list of data sets to plot
+percent_to_ignore = 2 # lower bound for percentages displayed on heat map
+max_value = None # max value represented on heat mat: all higher values have same colour
+name_override = None # override sample names on heat map ['sample 1', 'sample 2']
+pathways = ['PWY-5430', 'PWY-5431', 'PWY-7431'] # define a list of custom pathway names ['pathway-1', 'pathway-2']
+pathway_search = None # search for a string in pathway descriptions, first 9 matching pathways are plotted 
+save_fig = False # saves heat map as png
+latex_table = False # output LaTex table 
 
-make_heat_map([data_set_1, data_set_2, data_set_3, data_set_4, data_set_5, data_set_6], percent_to_ignore=3, max_value=None,
-              pathways=pathways, name_override=name_override)
+make_heat_map(data_to_plot, percent_to_ignore, max_value, pathways, name_override, pathway_search, save_fig, latex_table)
