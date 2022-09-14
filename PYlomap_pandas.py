@@ -2,12 +2,11 @@
 # By William Pearson, Hannah Eccleston, and Tristan Manchester
 
 # Import Packages
-from matplotlib import path
 import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-
+import matplotlib.gridspec
 
 
 class SampleInformation:
@@ -61,7 +60,8 @@ def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None,
     colour_maps = []
     colours_to_use = iter([plt.cm.Pastel1(i) for i in range(9)]) # colours to use for pathways on heatmap 
 
-    function_dictionary = pd.read_excel('Function Dictionary.xlsx', skiprows=1) # get function dictionary file 
+    function_dictionary = pd.read_excel('
+                                        Function Dictionary.xlsx', skiprows=1) # get function dictionary file 
     
     if pathway_search is not None:
       pathways = function_dictionary[['pathway', 'description']].loc[function_dictionary['description'].str.contains(pathway_search, case=False)].pathway.tolist() # get search results from fuction dictionary
@@ -92,13 +92,14 @@ def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None,
           colour_maps.append(
               joined_names[0].map(dict(zip(list_of_microbes_with_pathway_confidence[i], colour_lists[i]))).rename(
                   pathways[i]).fillna('white'))
+          
 
       colour_maps = pd.concat(colour_maps, axis=1) # joins list of colour maps into dataframe
     else:
       colour_maps = None
-    
+
     if latex_table: # checks if user wants a LaTex table of pathways and descriptions
-      if 'pathways_table' in locals(): # checks if pathways are used and creates LaTeX table of descriptions
+      if 'pathways_table' in locals(): # checks if pathways are used and creates LaTex table of descriptions
         pathways_table.columns = pathways_table.columns.str.title()
         with pd.option_context("max_colwidth", 1000):
           print(pathways_table.to_latex(index=False))
@@ -125,13 +126,15 @@ def heatmap_plot(data, max_value, colour_maps, name_override, save_fig=False, sa
     g = sns.clustermap(data=data.reset_index(drop=True), annot=True, linewidths=0, cmap="Blues", vmax=max_value,
                    row_cluster=False, metric="euclidean", method="ward", row_colors=colour_maps,
                    yticklabels=data.index.values, cbar_kws={'orientation': 'horizontal'})
-    
+
     g.ax_cbar.set_position([g.ax_heatmap.get_position().x0 + 0.25*g.ax_heatmap.get_position().width, 
                             g.ax_heatmap.get_position().y0-0.09, g.ax_heatmap.get_position().width*0.5, 0.02])
     g.ax_cbar.set_title('Percent abundance')
+    
 
     if save_fig:
       plt.savefig(save_name, dpi=300)
+
 
 data_set_1 = SampleInformation("data.xlsx", "Sheet1", "sample_1")
 data_set_2 = SampleInformation("data.xlsx", "Sheet1", "sample_2")
