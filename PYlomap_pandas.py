@@ -30,8 +30,15 @@ class SampleInformation:
             {self.sample_name: 'relative_abundance'}, axis=1).replace('__', np.nan)
 
 
-def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None,
-                  name_override=None, pathway_search=None, save_fig=False, latex_table=False):
+def create_datasets(data_excel_file=None, sample_list=None):
+    dataset_list = []
+    for sample in sample_list:
+        dataset_list.append(SampleInformation(data_excel_file, 'Sheet1', sample))
+    return dataset_list
+
+
+def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None, name_override=None, pathway_search=None, 
+                  save_fig=False, latex_table=False, taxon_dict=None, function_dict=None, parent=None, data_excel_file=None):
 
     # gets a list of all the datasets (SampleInformation class) from user
     # iterates through them
@@ -63,7 +70,7 @@ def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None,
 
     # creates a dataframe of joined microbe names as they appear in taxon dictionary
 
-    joined_names = pd.DataFrame(pd.read_excel('data.xlsx', skiprows=2,
+    joined_names = pd.DataFrame(pd.read_excel(data_excel_file, skiprows=2,
                                               names=['domain', 'phylum', 'classification',
                                                      'order', 'family', 'genus'], header=None,
                                               usecols=[0, 1, 2, 3, 4, 5]).replace('__', np.nan)[
@@ -75,15 +82,15 @@ def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None,
     # parent file is as csv because it's a bit faster
     # initiates some lists to use and makes a list of nice pastel colours for the function labels on the heatmap
 
-    taxon_dict = pd.read_excel('Taxon Dictionary.xlsx')
-    parent = pd.read_csv('FL Parent.csv').set_index('sample')  # set index as sample for easy indexing
+    taxon_dict = pd.read_excel(taxon_dict)
+    parent = pd.read_csv(parent).set_index('sample')  # set index as sample for easy indexing
     list_of_unique_taxons_in_pathway = []
     list_of_microbes_with_pathway_confidence = []
     colour_lists = []
     colour_maps = []
     pathways_table = None
     colours_to_use = iter([plt.cm.Pastel1(i) for i in range(9)])
-    function_dictionary = pd.read_excel('Function Dictionary.xlsx',
+    function_dictionary = pd.read_excel(function_dict,
                                         skiprows=1)
 
     # if the user entered a pathway search term:
@@ -146,7 +153,7 @@ def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None,
         if 'pathways_table' in locals():  # checks if pathways are used and creates LaTex table of descriptions
             pathways_table.columns = pathways_table.columns.str.title()
             with pd.option_context("max_colwidth", 1000):
-                print(pathways_table.to_latex(index=False))  # prints the LaTex code
+              print(pathways_table.to_latex(index=False))  # prints the LaTex code
 
     # Plot Data
     sample_names = []
@@ -164,7 +171,6 @@ def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None,
     # passes it max value for heatmap colour bar, any name overrides, whether or not to save fig, and the name to save it by
 
     heatmap_plot(dataframe, max_value, colour_maps, name_override, save_fig, save_name)
-
 
 def heatmap_plot(data, max_value, colour_maps, name_override, save_fig=False, save_name=None):
     if name_override is not None:  # override sample names if list of new names argument passed
@@ -189,20 +195,26 @@ def heatmap_plot(data, max_value, colour_maps, name_override, save_fig=False, sa
     if save_fig:
         plt.savefig(save_name, dpi=300, bbox_inches='tight')
 
-data_set_1 = SampleInformation("data.xlsx", "Sheet1", "sample_1")
-data_set_2 = SampleInformation("data.xlsx", "Sheet1", "sample_2")
-data_set_3 = SampleInformation("data.xlsx", "Sheet1", "sample_3")
-data_set_4 = SampleInformation("data.xlsx", "Sheet1", "sample_4")
-data_set_5 = SampleInformation("data.xlsx", "Sheet1", "sample_5")
-data_set_6 = SampleInformation("data.xlsx", "Sheet1", "sample_6")
+# Data
+data_excel_file = 'data.xlsx'  # excel file containing sample relative abundances 
+sample_list = ['sample1', 'sample2', 'sample3', 'sample4', 'sample5', 'sample6']  # which samples you wish to use from the data
 
-data_to_plot = [data_set_1, data_set_2, data_set_3, data_set_4, data_set_5, data_set_6] # list of data sets to plot
-percent_to_ignore = 2 # lower bound for percentages displayed on heat map
-max_value = None # max value represented on heat mat: all higher values have same colour
-name_override = None # override sample names on heat map ['sample_1', 'sample_2']
-pathways = ['pathway_1', 'pathway_2'] # define a list of custom pathway names ['pathway_1', 'pathway_2']
-pathway_search = None # search for a string in pathway descriptions, first 9 matching pathways are plotted 
-save_fig = False # saves heat map as png
-latex_table = False # output LaTex table 
+# Dictionaries 
+taxon_dict = 'Taxon Dictionary.xlsx'  # taxon dictionary in excel format
+function_dict = 'Function Dictionary.xlsx'  # function dictionary in excel format
+parent = 'FL Parent.csv'  # parent file in csv format 
 
-make_heat_map(data_to_plot, percent_to_ignore, max_value, pathways, name_override, pathway_search, save_fig, latex_table)
+# Pathways
+pathways = ['PWY-5430', 'PWY-5431', 'PWY-7431', 'PWY-1361']  # define a list of custom pathway names ['pathway-1', 'pathway-2']
+pathway_search = None  # search for a string in pathway descriptions, first 9 matching pathways are plotted 
+
+# Heatmap and LaTex options
+percent_to_ignore = 2  # lower bound for percentages displayed on heat map
+max_value = None  # max value represented on heat map: all higher values have the same colour
+name_override = None  # override sample names on heat map ['sample 1', 'sample 2']
+save_fig = False  # saves heat map as png
+latex_table = False  # output LaTex table with pathways and descriptions
+
+dataset_list = create_datasets(data_excel_file, sample_list)
+make_heat_map(dataset_list, percent_to_ignore, max_value, pathways, name_override, pathway_search, 
+              save_fig, latex_table, taxon_dict, function_dict, parent, data_excel_file)
