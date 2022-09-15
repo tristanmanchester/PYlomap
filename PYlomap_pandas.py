@@ -165,7 +165,10 @@ def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None, 
     for i in datasets:
         sample_name = i.sample_name
         sample_names.append(sample_name)
-    save_name = f'[{"; ".join(sample_names)}] - [{"; ".join(pathways)}]'
+    if pathways is not None:
+      save_name = f'[{"; ".join(sample_names)}] - [{"; ".join(pathways)}]'
+    else:
+      save_name = f'[{"; ".join(sample_names)}]'
 
     # calls heatmap plot function, passes it dataframe (top level microbe names, sample name columns, relative abundances)
     # passes it max value for heatmap colour bar, any name overrides, whether or not to save fig, and the name to save it by
