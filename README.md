@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="https://i.ibb.co/LJ5nTHf/pylomap.png" width="250"/>
+</p>
+
+
 # Overview
 
 Pylomap is a program which creates data visualisations for QIIME2 BIOM microorganism data. It allows you to :
