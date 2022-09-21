@@ -38,35 +38,23 @@ def create_datasets(data_excel_file=None, sample_list=None):
 
 
 def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None, name_override=None, pathway_search=None, 
-                  save_fig=False, latex_table=False, taxon_dict=None, function_dict=None, parent=None, data_excel_file=None):
+                  save_fig=False, latex_table=False, taxon_dict=None, function_dict=None, parent=None, data_excel_file=None, group_by=None):
 
-    # gets a list of all the datasets (SampleInformation class) from user
-    # iterates through them
-    # ffill fills all the empty spaces with the highest name available
-    # drop gets rid of first 5 columns so we have 2 columns: highest name and RA
-    # renames these columns to microbe and sample name and sets the index to be microbe list (index is like A, B, C etc in excel)
-    # appends this to dataset_list -> get list of dataframes with single column of RAs for each dataset
-
-    dataset_list = []
-    for dataset in datasets:
-        microbe_list = (
-            dataset.excel_sheet.ffill(axis='columns').drop(['domain', 'phylum', 'classification', 'order', 'family'],
-                                                           axis=1).rename(
-                {'relative_abundance': dataset.sample_name, 'genus': 'microbe'}, axis=1).set_index(
-                'microbe'))
-        dataset_list.append(microbe_list)
-
-    # creates a new dataframe with the first dataset list
-    # create new columns titled with sample names, filled with their RAs
-    # chooses only the data greater than percent_to_ignore, and multiply by 100 for percentage
-
-    dataframe = dataset_list[0]
-    for i in range(1, len(datasets)):
-        dataframe[datasets[i].sample_name] = dataset_list[i][
-            datasets[i].sample_name]
-    dataframe = dataframe.astype(float).loc[~(dataframe < percent_to_ignore / 100).all(
-        axis=1)] * 100
-    dataframe.index.name = None
+    if group_by is None:
+      list = []
+      for dataset in datasets:
+        list.append(dataset.excel_sheet_sample_name[dataset.sample_name])
+      dataframe = datasets[0].excel_sheet_sample_name.join(list[1:]).ffill(axis='columns').drop(['domain', 'phylum', 'classification', 'order', 'family'],
+                                                            axis=1).rename(
+                  {'genus': 'microbe'}, axis=1).set_index(
+                  'microbe')
+      dataframe = dataframe.astype(float).loc[~(dataframe < percent_to_ignore / 100).all(axis=1)] * 100
+    else:
+      list = []
+      for dataset in datasets:
+        list.append(dataset.excel_sheet_sample_name[dataset.sample_name])
+      dataframe = datasets[0].excel_sheet_sample_name.join(list[1:]).groupby(group_by).sum()
+      dataframe = dataframe.astype(float).loc[~(dataframe < percent_to_ignore / 100).all(axis=1)] * 100
 
     # creates a dataframe of joined microbe names as they appear in taxon dictionary
 
@@ -173,19 +161,23 @@ def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None, 
     # calls heatmap plot function, passes it dataframe (top level microbe names, sample name columns, relative abundances)
     # passes it max value for heatmap colour bar, any name overrides, whether or not to save fig, and the name to save it by
 
-    heatmap_plot(dataframe, max_value, colour_maps, name_override, save_fig, save_name)
+    heatmap_plot(dataframe, max_value, colour_maps, name_override, save_fig, save_name, group_by)
 
-def heatmap_plot(data, max_value, colour_maps, name_override, save_fig=False, save_name=None):
+def heatmap_plot(data, max_value, colour_maps, name_override, save_fig=False, save_name=None, group_by=None):
     if name_override is not None:  # override sample names if list of new names argument passed
         data = data.set_axis(name_override, axis=1, inplace=False)
     sns.set(font_scale=1)  # for increasing font size
 
     # creates cluster map which is a heatmap with a dendrogram showing sample similarity based on microbe abundances
     # row_colours creates columns showing which of the chosen pathways are associated with each microbe
-
-    g = sns.clustermap(data=data.reset_index(drop=True), annot=True, linewidths=0, cmap="Blues", vmax=max_value,
-                       row_cluster=False, metric="euclidean", method="ward", row_colors=colour_maps,
-                       yticklabels=data.index.values, cbar_kws={'orientation': 'horizontal'})
+    if group_by is None:
+      g = sns.clustermap(data=data.reset_index(drop=True), annot=True, linewidths=0, cmap="Blues", vmax=max_value,
+                        row_cluster=False, metric="euclidean", method="ward", row_colors=colour_maps,
+                        yticklabels=data.index.values, cbar_kws={'orientation': 'horizontal'})
+    else:
+      g = sns.clustermap(data=data.reset_index(drop=True), annot=True, linewidths=0, cmap="Blues", vmax=max_value,
+                        row_cluster=False, metric="euclidean", method="ward",
+                        yticklabels=data.index.values, cbar_kws={'orientation': 'horizontal'})
 
     # puts the colour bar at the bottom and gives it a title
 
