@@ -11,6 +11,7 @@ Pylomap is a program which creates data visualisations for QIIME2 BIOM microorga
 - Generate a dendrogram showing which of your samples are most alike in microbial composition. 
 - Show which pathways are associated with the microbes present in your samples.
 - Create LaTex tables showing the names and descriptions of your chosen pathways. 
+- Group microbes by taxon, such as phylum or classification, to give a broader overview of the data. 
 
 ### Output heat map:
 <p align="left">
