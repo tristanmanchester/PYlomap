@@ -40,6 +40,10 @@ def create_datasets(data_excel_file=None, sample_list=None):
 def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None, name_override=None, pathway_search=None, 
                   save_fig=False, latex_table=False, taxon_dict=None, function_dict=None, parent=None, data_excel_file=None, group_by=None):
 
+    # if user doesn't want to group by taxon:
+    # creates a dataframe with lowest taxon available for each microbe and columns of relative abundances for each sample name
+    # if they specify a taxon, groups all microbes with matching taxon names and sums their relative abundances
+
     if group_by is None:
       list = []
       for dataset in datasets:
@@ -170,6 +174,7 @@ def heatmap_plot(data, max_value, colour_maps, name_override, save_fig=False, sa
 
     # creates cluster map which is a heatmap with a dendrogram showing sample similarity based on microbe abundances
     # row_colours creates columns showing which of the chosen pathways are associated with each microbe
+    # pathways are not shown if they specified a lower taxon (not really useful)
     if group_by is None:
       g = sns.clustermap(data=data.reset_index(drop=True), annot=True, linewidths=0, cmap="Blues", vmax=max_value,
                         row_cluster=False, metric="euclidean", method="ward", row_colors=colour_maps,
