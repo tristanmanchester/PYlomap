@@ -18,6 +18,11 @@ Pylomap is a program which creates data visualisations for QIIME2 BIOM microorga
   <img src="https://i.ibb.co/jHJTJXD/test-2.png" width="750"/>
 </p>
 
+### Grouping by phylum:
+<p align="left">
+  <img src="https://i.ibb.co/CVjWHLT/phylum-group.png" width="750"/>
+</p>
+
 ### LaTex table:
 
 <p align="left">
