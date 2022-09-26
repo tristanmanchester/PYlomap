@@ -36,6 +36,13 @@ def create_datasets(data_excel_file=None, sample_list=None):
         dataset_list.append(SampleInformation(data_excel_file, 'Sheet1', sample))
     return dataset_list
 
+# custom aitchison distance for distance metric https://www.frontiersin.org/articles/10.3389/fmicb.2017.02224/full
+def aitchison(u, v):
+  # sets 0% values to very small finite numbers because the aitchison caluclation has a log in there somewhere 
+  u[u == 0] = 0.000000001
+  v[v == 0] = 0.000000001
+  dist =  euclidean(clr(u), clr(v))
+  return dist
 
 def make_heat_map(datasets, percent_to_ignore=0, max_value=None, pathways=None, name_override=None, pathway_search=None, 
                   save_fig=False, latex_table=False, taxon_dict=None, function_dict=None, parent=None, data_excel_file=None, group_by=None):
@@ -176,12 +183,12 @@ def heatmap_plot(data, max_value, colour_maps, name_override, save_fig=False, sa
     # row_colours creates columns showing which of the chosen pathways are associated with each microbe
     # pathways are not shown if they specified a lower taxon (not really useful)
     if group_by is None:
-      g = sns.clustermap(data=data.reset_index(drop=True), annot=True, linewidths=0, cmap="Blues", vmax=max_value,
-                        row_cluster=False, metric="euclidean", method="ward", row_colors=colour_maps,
+      g = sns.clustermap(data=data.reset_index(drop=True), annot=data.reset_index(drop=True), linewidths=0, cmap="Blues", vmax=max_value,
+                        row_cluster=False, metric=aitchison, method="complete", row_colors=colour_maps,
                         yticklabels=data.index.values, cbar_kws={'orientation': 'horizontal'})
     else:
-      g = sns.clustermap(data=data.reset_index(drop=True), annot=True, linewidths=0, cmap="Blues", vmax=max_value,
-                        row_cluster=False, metric="euclidean", method="ward",
+      g = sns.clustermap(data=data.reset_index(drop=True), annot=data.reset_index(drop=True), linewidths=0, cmap="Blues", vmax=max_value,
+                        row_cluster=True, metric=aitchison, method="complete",
                         yticklabels=data.index.values, cbar_kws={'orientation': 'horizontal'})
 
     # puts the colour bar at the bottom and gives it a title
