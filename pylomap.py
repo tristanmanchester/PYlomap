@@ -1,7 +1,6 @@
 # Heatmap Generation from MicroOrganism Data
 # By William Pearson, Hannah Eccleston, and Tristan Manchester
 
-
 from scipy.spatial.distance import euclidean
 from skbio.stats.composition import clr
 import seaborn as sns
@@ -213,7 +212,7 @@ class ReadDataFiles:
     read_excel_file(file_path, usecols=None, skiprows=None, column_names=None):
         Reads an Excel file with specified columns, skipped rows, and column names.
     read_all_sample_data():
-        Reads and preprocesses the All Sample Data file.
+        Reads and preprocesses the Sample Data file.
     read_taxon_dict():
         Reads the Taxon Dictionary file.
     read_function_dict():
@@ -247,7 +246,7 @@ class ReadDataFiles:
             df.columns = column_names
         return df
 
-    def read_all_sample_data(self):
+    def read_all_sample_data(self, taxon_level=None):
         """
         Reads and preprocesses the Sample Data file.
 
@@ -330,16 +329,38 @@ class HeatmapData:
     self.samples = samples
     self.aitchison = self.get_aitchison_distance_function()
 
-  def process_heatmap_data(self):
-    """
-    Processes the sample data to be used for the heatmap visualization.
+  def process_heatmap_data(self, taxon_level=None):
+      """
+      Processes the sample data to be used for the heatmap visualization.
 
-    Returns:
-    heatmap_data (DataFrame): A pandas DataFrame containing taxa and abundance information for each sample.
-    """
-    heatmap_data = pd.DataFrame(data=[self.samples[0].taxa.Taxon.tolist()] + [sample.abundances for sample in self.samples]).T
-    heatmap_data.columns = ['Taxa'] + [sample.sample_name for sample in self.samples]
-    return heatmap_data
+      Args:
+      taxon_level (str): The taxonomic level to aggregate on. Can be one of 'domain', 'phylum', 'class', 'order', 'family', 'genus'. Default is None, in which case no aggregation is performed.
+
+      Returns:
+      heatmap_data (DataFrame): A pandas DataFrame containing taxa and abundance information for each sample.
+      """
+      heatmap_data = pd.DataFrame(data=[self.samples[0].taxa.Taxon.tolist()] + [sample.abundances for sample in self.samples]).T
+      heatmap_data.columns = ['Taxa'] + [sample.sample_name for sample in self.samples]
+
+      if taxon_level is not None:
+          taxon_levels = ['domain', 'phylum', 'class', 'order', 'family', 'genus']
+
+          if taxon_level not in taxon_levels:
+              raise ValueError('taxon_level must be one of ' + ', '.join(taxon_levels))
+
+          # Split the 'Taxa' column into separate taxonomic levels
+          taxa_split = heatmap_data['Taxa'].str.split("; ", expand=True)
+
+          taxa_split.columns = taxon_levels
+
+          # Aggregate by the specified taxon_level
+          heatmap_data = heatmap_data.drop('Taxa', axis=1)
+          heatmap_data = pd.concat([heatmap_data, taxa_split[taxon_level]], axis=1)
+
+          # Group by the taxon_level and sum the abundances
+          heatmap_data = heatmap_data.groupby(taxon_level).sum().reset_index().rename(columns={taxon_level: 'Taxa'})
+      return heatmap_data
+
 
   # Define a custom aitchison distance for distance metric https://www.frontiersin.org/articles/10.3389/fmicb.2017.02224/full
   @staticmethod
@@ -369,7 +390,7 @@ class HeatmapPlot:
     It provides methods to search for pathways, check user-specified pathways, and create the heatmap plot.
     """
 
-    def __init__(self, heatmap_data_object, all_pathways, function_dict):
+    def __init__(self, heatmap_data_object, all_pathways, function_dict, taxon_level=None):
         """
         Initialize the HeatmapPlot class.
 
@@ -379,10 +400,11 @@ class HeatmapPlot:
         function_dict (DataFrame): A pandas DataFrame containing the function dictionary.
         """
         self.heatmap_data_object = heatmap_data_object
-        self.heatmap_data = self.heatmap_data_object.process_heatmap_data()
+        self.heatmap_data = self.heatmap_data_object.process_heatmap_data(taxon_level)
         self.aitchison = self.heatmap_data_object.aitchison
         self.all_pathways = all_pathways
         self.function_dict = function_dict
+        self.taxon_level = taxon_level
 
     def search_pathways(self, search_string):
         """
@@ -434,11 +456,47 @@ class HeatmapPlot:
         user_pathways = self.check_user_pathways(user_pathways)
         # Filter data by threshold and fill NaNs
         filtered_data = self.heatmap_data[(self.heatmap_data.drop('Taxa', axis=1) > threshold / 100).any(axis=1)].fillna(0)
-        
-        # Further steps for plotting and color mapping
+
+        # Identify microbes that are associated with the user-specified pathways
+        user_pathways_taxa = []
+        if user_pathways is not None and self.taxon_level is None:
+          for pathway in user_pathways:
+              if pathway in self.all_pathways:
+                  taxa_ids = self.all_pathways[pathway]
+                  taxa_names = taxon_dict[taxon_dict['Taxon ID'].isin(taxa_ids)]['Taxon'].tolist()
+                  user_pathways_taxa.append(taxa_names)
+
+          # Define colors for each pathway
+          colors = sns.color_palette("pastel", len(user_pathways))  # change palette if needed
+
+          # Create a DataFrame for row_colors
+          row_colors = pd.DataFrame(index=filtered_data['Taxa'])
+          filtered_data.set_index('Taxa', inplace=True)
+
+          # Map colors to taxa for each pathway
+          for pathway, taxa, color in zip(user_pathways, user_pathways_taxa, colors):
+              row_colors[pathway] = row_colors.index.to_series().map(dict([(taxon, color) for taxon in taxa]))
+        else:
+          row_colors = None
+          filtered_data.set_index('Taxa', inplace=True)
+
+
+        # Drop 'Taxa' column for heatmap
+        # plot_data = filtered_data.drop('Taxa', axis=1)
+        plot_data = filtered_data
+
+        # For yticklabels, split each string in 'Taxa' on "; " and take the rightmost substring
+        yticklabels = self.heatmap_data[(self.heatmap_data.drop('Taxa', axis=1) > threshold / 100).any(axis=1)].fillna(0).Taxa.str.split("; ").str[-1]
 
         # Create clustermap
+        g = sns.clustermap(data=plot_data, cmap="Blues", metric=self.aitchison, method="complete",
+                          row_cluster=False, cbar_kws={'orientation': 'horizontal'},
+                          yticklabels=yticklabels, row_colors=row_colors)
+
         # Set colorbar position and title
+        g.ax_cbar.set_position([g.ax_heatmap.get_position().x0 + 0.25 * g.ax_heatmap.get_position().width,
+                                g.ax_heatmap.get_position().y0 - 0.09, g.ax_heatmap.get_position().width * 0.5, 0.02])
+        g.ax_cbar.set_title('Percent abundance')
 
         # Display the plot
         plt.show()
@@ -481,6 +539,8 @@ class LatexTable:
           return latex_table
 
 
+
+
 def get_data(all_sample_data, taxon_dict, function_dict, parent):
     """
     Function to read in all data files required for processing.
@@ -518,7 +578,7 @@ def create_samples_and_pathways(all_sample_data, taxon_dict, parent, sample_list
     all_pathways = Pathways(parent).create()
     return samples, all_pathways
 
-def plot_heatmap(samples, all_pathways, function_dict, taxon_dict, user_pathways, print_table, threshold):
+def plot_heatmap(samples, all_pathways, function_dict, taxon_dict, user_pathways, print_table, threshold, taxon_level=None):
     """
     Function to create and plot a heatmap, and optionally print a LaTeX table of the pathways.
 
@@ -530,16 +590,17 @@ def plot_heatmap(samples, all_pathways, function_dict, taxon_dict, user_pathways
     user_pathways (str or list or None): Either a string containing a search term, a list of specific pathways, or None.
     print_table (bool): Whether to print a LaTeX table of the pathways.
     threshold (int): The threshold value for percent abundance.
+    taxon_level (str or None): The level at which to group taxa. If None, no grouping is done. 
+                               Can be 'domain', 'phylum', 'class', 'order', 'family', or 'genus'.
 
     Returns:
     None
     """
     heatmap_data_object = HeatmapData(samples)
-    heatmap_plot = HeatmapPlot(heatmap_data_object, all_pathways, function_dict)
+    heatmap_plot = HeatmapPlot(heatmap_data_object, all_pathways, function_dict, taxon_level)
     heatmap_plot.heatmap_plot(user_pathways, threshold, taxon_dict)
     if print_table:
         print(LatexTable(function_dict, user_pathways, heatmap_plot).create_table())
-
 
 def main():
     """
@@ -569,6 +630,9 @@ def main():
     # Specify whether a LaTeX table of the pathways should be printed
     print_latex_table = False
 
+    # Specify the taxon level for grouping. If None, no grouping is done. Can be 'domain', 'phylum', 'class', 'order', 'family', or 'genus'
+    taxon_level = None
+
     # Get data from all required files
     all_sample_data, taxon_dict, function_dict, parent = get_data(all_sample_data, taxon_dict, function_dict, parent)
 
@@ -576,10 +640,8 @@ def main():
     samples, all_pathways = create_samples_and_pathways(all_sample_data, taxon_dict, parent, sample_list)
 
     # Plot the heatmap and optionally print the LaTeX table
-    plot_heatmap(samples, all_pathways, function_dict, taxon_dict, user_pathways, print_latex_table, threshold)
+    plot_heatmap(samples, all_pathways, function_dict, taxon_dict, user_pathways, print_latex_table, threshold, taxon_level)
+
 
 if __name__ == "__main__":
-    """
-    If this script is run as the main module, call the main() function.
-    """
     main()
