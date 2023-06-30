@@ -1,18 +1,20 @@
-# Heatmap Generation from MicroOrganism Data
-# By William Pearson, Hannah Eccleston, and Tristan Manchester
-
 from scipy.spatial.distance import euclidean
 from skbio.stats.composition import clr
 import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import os
+import openpyxl
+import requests
+from matplotlib import font_manager as fm
+
 
 class Sample:
     """
     Sample Class.
     
-    This class represents a biological sample, characterized by its name, taxa, abundances,
+    This class represents a biological sample, characterised by its name, taxa, abundances,
     and pathways.
 
     Attributes
@@ -104,7 +106,7 @@ class Microbe:
     """
     Microbe Class.
     
-    This class represents a microbial taxon, characterized by its taxon_id and associated pathways.
+    This class represents a microbial taxon, characterised by its taxon_id and associated pathways.
 
     Attributes
     ----------
@@ -172,7 +174,7 @@ class Pathways:
         self.parent = parent
         self.pathways = {}
 
-    def create(self):
+    def create(self): # Groupby to speed up program (uses more memory)
         """
         Create pathways dictionary from data.
 
@@ -183,10 +185,9 @@ class Pathways:
         dict
             A dictionary of pathways and their associated taxon IDs.
         """
-        unique_pathways = self.parent['Pathway'].unique()
-        for pathway in tqdm(unique_pathways, desc="Creating pathways"):
-            taxon_ids = self.parent[self.parent['Pathway'] == pathway]['Taxon ID'].tolist()
-            self.pathways[pathway] = taxon_ids
+        grouped = self.parent.groupby('Pathway')['Taxon ID']
+        for pathway, taxon_ids in tqdm(grouped, desc="Creating pathways"):
+            self.pathways[pathway] = taxon_ids.tolist()
         return self.pathways
 
 
@@ -222,7 +223,7 @@ class ReadDataFiles:
     """
 
     def __init__(self, all_sample_data_path, taxon_dict_path, function_dict_path, parent_path):
-        """Initializes the ReadDataFiles with specified paths to the data files."""
+        """Initialises the ReadDataFiles with specified paths to the data files."""
         self.all_sample_data_path = all_sample_data_path
         self.taxon_dict_path = taxon_dict_path
         self.function_dict_path = function_dict_path
@@ -240,11 +241,46 @@ class ReadDataFiles:
 
         Returns:
         df (DataFrame): Pandas DataFrame containing the data read from the Excel file.
+
+        Raises:
+        FileNotFoundError: If the file_path does not exist.
+        ValueError: If the file is not a .xlsx or .xls file.
+        ValueError: If the file is empty.
+        ValueError: If usecols exceeds the total number of columns in the Excel file.
+        ValueError: If skiprows exceeds the total number of rows in the Excel file.
         """
+
+        # Check if the file exists
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"No file found at {file_path}")
+
+        # Check if the file is an Excel file
+        if not (file_path.endswith(".xlsx") or file_path.endswith(".xls")):
+            raise ValueError(f"File at {file_path} is not an Excel file (.xlsx or .xls)")
+
+        # Check if the file is not empty
+        workbook = openpyxl.load_workbook(filename = file_path, read_only=False)
+        sheet = workbook.active
+        if sheet.dimensions == "A1:A1":
+            raise ValueError(f"Excel file at {file_path} is empty")
+
+        # Read the Excel file
         df = pd.read_excel(file_path, usecols=usecols, skiprows=skiprows)
+
+        # Check if the requested columns exist
+        if usecols and max(usecols) > len(df.columns) - 1:
+            raise ValueError("usecols parameter exceeds the total number of columns in the Excel file")
+
+        # Check if the requested number of rows to skip does not exceed the total number of rows
+        if skiprows and skiprows > len(df):
+            raise ValueError("skiprows parameter exceeds the total number of rows in the Excel file")
+
+        # Apply column names if specified
         if column_names:
             df.columns = column_names
+
         return df
+
 
     def read_all_sample_data(self, taxon_level=None):
         """
@@ -252,9 +288,16 @@ class ReadDataFiles:
 
         Returns:
         all_sample_data (DataFrame): Pandas DataFrame containing the preprocessed Sample Data.
+
+        Raises:
+        ValueError: If the sample data file does not have the expected structure.
         """
         # Read the file, skipping the first row
         all_sample_data = self.read_excel_file(self.all_sample_data_path, skiprows=1)
+
+        # Check if the file has the expected structure (at least 7 columns)
+        if len(all_sample_data.columns) < 7:
+            raise ValueError(f"The sample data file at {self.all_sample_data_path} does not have the expected structure")
 
         # Set column names for the first six columns
         all_sample_data.columns.values[:6] = ['Domain', 'Phylum', 'Class', 'Order', 'Family', 'Genus']
@@ -276,17 +319,28 @@ class ReadDataFiles:
 
         return all_sample_data
 
+
     def read_taxon_dict(self):
         """
         Reads the Taxon Dictionary file.
 
         Returns:
         taxon_dict (DataFrame): Pandas DataFrame containing the Taxon Dictionary data.
+
+        Raises:
+        ValueError: If the taxon dictionary file does not have the expected structure.
         """
-        # Read the file, skipping the first two rows, and set column names
+        # Read the file, skipping the first two rows
         taxon_dict = self.read_excel_file(self.taxon_dict_path, usecols=[0, 1], skiprows=2)
+
+        # Check if the file has the expected structure (at least 2 columns)
+        if len(taxon_dict.columns) < 2:
+            raise ValueError(f"The taxon dictionary file at {self.taxon_dict_path} does not have the expected structure")
+
+        # Set column names
         taxon_dict.columns = ['Taxon ID', 'Taxon']
         return taxon_dict
+
 
     def read_function_dict(self):
         """
@@ -294,11 +348,21 @@ class ReadDataFiles:
 
         Returns:
         function_dict (DataFrame): Pandas DataFrame containing the Function Dictionary data.
+
+        Raises:
+        ValueError: If the function dictionary file does not have the expected structure.
         """
-        # Read the file, skipping the first row, and set column names
+        # Read the file, skipping the first row
         function_dict = self.read_excel_file(self.function_dict_path, usecols=[0, 1], skiprows=1)
+
+        # Check if the file has the expected structure (at least 2 columns)
+        if len(function_dict.columns) < 2:
+            raise ValueError(f"The function dictionary file at {self.function_dict_path} does not have the expected structure")
+
+        # Set column names
         function_dict.columns = ['Pathway', 'Pathway description']
         return function_dict
+
 
     def read_parent(self):
         """
@@ -306,22 +370,40 @@ class ReadDataFiles:
 
         Returns:
         parent (DataFrame): Pandas DataFrame containing the Parent data.
+
+        Raises:
+        FileNotFoundError: If the file does not exist.
+        pd.errors.ParserError: If the file cannot be parsed as a CSV.
+        ValueError: If the file does not contain the necessary columns.
         """
-        # Read the file and set column names
-        parent = pd.read_csv(self.parent_path, usecols=[1, 2])
+        # Check if the file exists
+        if not os.path.isfile(self.parent_path):
+            raise FileNotFoundError(f"Parent file at {self.parent_path} does not exist")
+
+        try:
+            # Try reading the file
+            parent = pd.read_csv(self.parent_path, usecols=[1, 2])
+        except pd.errors.ParserError:
+            # The file is not a properly formatted CSV
+            raise pd.errors.ParserError(f"Cannot parse Parent file at {self.parent_path} as a CSV file")
+
+        # Check if the file has the necessary columns
+        if len(parent.columns) < 2:
+            raise ValueError(f"The Parent file at {self.parent_path} does not have the necessary columns")
+
+        # Set column names
         parent.columns = ['Pathway', 'Taxon ID']
         return parent
 
 
-
 class HeatmapData:
   """
-  This class represents the data structure for a heatmap visualization. It processes
+  This class represents the data structure for a heatmap visualisation. It processes
   sample data for the heatmap and provides a custom Aitchison distance function.
   """
   def __init__(self, samples):
     """
-    Initialize the HeatmapData class.
+    Initialise the HeatmapData class.
 
     Args:
     samples (list): A list of sample objects.
@@ -331,7 +413,7 @@ class HeatmapData:
 
   def process_heatmap_data(self, taxon_level=None):
       """
-      Processes the sample data to be used for the heatmap visualization.
+      Processes the sample data to be used for the heatmap visualisation.
 
       Args:
       taxon_level (str): The taxonomic level to aggregate on. Can be one of 'domain', 'phylum', 'class', 'order', 'family', 'genus'. Default is None, in which case no aggregation is performed.
@@ -392,7 +474,7 @@ class HeatmapPlot:
 
     def __init__(self, heatmap_data_object, all_pathways, function_dict, taxon_level=None):
         """
-        Initialize the HeatmapPlot class.
+        Initialise the HeatmapPlot class.
 
         Args:
         heatmap_data_object (HeatmapData object): An object of the HeatmapData class.
@@ -437,7 +519,7 @@ class HeatmapPlot:
         elif isinstance(user_pathways, str):
             return self.search_pathways(user_pathways)
         elif user_pathways is None:
-          return None
+            return None
         else:
             raise TypeError('user_pathways must be either a string or a list (or None)')
 
@@ -457,6 +539,7 @@ class HeatmapPlot:
         # Filter data by threshold and fill NaNs
         filtered_data = self.heatmap_data[(self.heatmap_data.drop('Taxa', axis=1) > threshold / 100).any(axis=1)].fillna(0)
 
+
         # Identify microbes that are associated with the user-specified pathways
         user_pathways_taxa = []
         if user_pathways is not None and self.taxon_level is None:
@@ -466,38 +549,52 @@ class HeatmapPlot:
                   taxa_names = taxon_dict[taxon_dict['Taxon ID'].isin(taxa_ids)]['Taxon'].tolist()
                   user_pathways_taxa.append(taxa_names)
 
-          # Define colors for each pathway
+          # Define colours for each pathway
           colors = sns.color_palette("pastel", len(user_pathways))  # change palette if needed
-
-          # Create a DataFrame for row_colors
+          # filtered_data.iloc[:, 1:] *= 100
+          # Create a DataFrame for row_colours
           row_colors = pd.DataFrame(index=filtered_data['Taxa'])
           filtered_data.set_index('Taxa', inplace=True)
 
-          # Map colors to taxa for each pathway
+          # Map colours to taxa for each pathway
           for pathway, taxa, color in zip(user_pathways, user_pathways_taxa, colors):
               row_colors[pathway] = row_colors.index.to_series().map(dict([(taxon, color) for taxon in taxa]))
         else:
           row_colors = None
           filtered_data.set_index('Taxa', inplace=True)
-
-
-        # Drop 'Taxa' column for heatmap
-        # plot_data = filtered_data.drop('Taxa', axis=1)
-        plot_data = filtered_data
-
+        # print(filtered_data.head(1))
         # For yticklabels, split each string in 'Taxa' on "; " and take the rightmost substring
         yticklabels = self.heatmap_data[(self.heatmap_data.drop('Taxa', axis=1) > threshold / 100).any(axis=1)].fillna(0).Taxa.str.split("; ").str[-1]
-
         # Create clustermap
-        g = sns.clustermap(data=plot_data, cmap="Blues", metric=self.aitchison, method="complete",
-                          row_cluster=False, cbar_kws={'orientation': 'horizontal'},
+        g = sns.clustermap(data=filtered_data, cmap="Blues", metric=self.aitchison, method="complete",
+                          row_cluster=False, col_cluster=True, cbar_kws={'orientation': 'horizontal'},
                           yticklabels=yticklabels, row_colors=row_colors)
 
-        # Set colorbar position and title
+        column_order = g.dendrogram_col.reordered_ind
+
+        # Annotate heatmap with data values
+        filtered_data.iloc[:, 1:] *= 100
+        for i in range(filtered_data.shape[0]):
+            for j, j_new in enumerate(column_order):
+                g.ax_heatmap.text(j+0.5, i+0.5, '{:.1f}'.format(filtered_data.values[i, j_new]),
+                                  ha='center', va='center', fontsize=8)
+
+
+        # Set colourbar position and title
+        colorbar = g.ax_heatmap.collections[0].colorbar
+        ticks = colorbar.get_ticks()
+        colorbar.set_ticklabels(['{:.0f}%'.format(tick*100) for tick in ticks])
         g.ax_cbar.set_position([g.ax_heatmap.get_position().x0 + 0.25 * g.ax_heatmap.get_position().width,
-                                g.ax_heatmap.get_position().y0 - 0.09, g.ax_heatmap.get_position().width * 0.5, 0.02])
+                                g.ax_heatmap.get_position().y0 - 0.1, g.ax_heatmap.get_position().width * 0.5, 0.02])
         g.ax_cbar.set_title('Percent abundance')
 
+        # Add labels
+        g.ax_heatmap.set_xlabel("Sample")
+        g.ax_heatmap.yaxis.tick_right()
+        g.ax_heatmap.yaxis.set_label_position("right")
+        g.ax_heatmap.set_ylabel("Taxon")
+        if row_colors is not None:
+          g.ax_heatmap.annotate("Pathways", xy=(-0.0176*(row_colors.shape[1]-3), 1.01), xycoords='axes fraction', va='bottom', ha='right', rotation='horizontal')
         # Display the plot
         plt.show()
 
@@ -509,7 +606,7 @@ class LatexTable:
 
     def __init__(self, function_dict, user_pathways, heatmap_plot_instance):
         """
-        Initialize the LatexTable class.
+        Initialise the LatexTable class.
 
         Args:
         function_dict (DataFrame): A pandas DataFrame containing the function dictionary.
@@ -532,10 +629,17 @@ class LatexTable:
         """
         if self.user_pathways is not None:
           # Filter the function_dict to only include the user-specified pathways
-          function_dict_filtered = self.function_dict[self.function_dict['Pathway'].isin(self.user_pathways)]
+          function_dict_filtered = self.function_dict[self.function_dict['Pathway'].isin(self.user_pathways)].reset_index(drop=True)
+
+          # Disable truncation
+          pd.options.display.max_colwidth = None
 
           # Generate the LaTeX table and return it
           latex_table = function_dict_filtered.to_latex(index=False)
+
+          # Restore previous max_colwidth value
+          pd.options.display.max_colwidth = 50
+          
           return latex_table
 
 
@@ -613,22 +717,23 @@ def main():
     None
     """
     # Define the file paths for the data sources
-    all_sample_data = '/content/drive/MyDrive/Pylomap/pylomap/F data.xlsx'
-    taxon_dict = '/content/drive/MyDrive/Pylomap/pylomap/Taxon Dictionary.xlsx'
-    function_dict = '/content/drive/MyDrive/Pylomap/pylomap/Function Dictionary.xlsx'
-    parent = '/content/drive/MyDrive/Pylomap/pylomap/FL Parent.csv'
+    all_sample_data = 'Data.xlsx'
+    taxon_dict = 'Taxon Dictionary.xlsx'
+    function_dict = 'Function Dictionary.xlsx'
+    parent = 'Parent.csv'
 
     # Specify which samples should be plotted. If None, all samples are plotted
     sample_list = None      
 
     # Specify pathways to plot as a list OR a string to search OR None
-    user_pathways = ['1CMET2-PWY', 'PWY-5430', 'PWY-5431']      
+    # user_pathways = ['1CMET2-PWY', 'PWY-5430', 'PWY-5431']  
+    user_pathways = 'sulf'    
 
     # Percentage above which is displayed on the clustermap
     threshold = 3     
 
     # Specify whether a LaTeX table of the pathways should be printed
-    print_latex_table = False
+    print_latex_table = True
 
     # Specify the taxon level for grouping. If None, no grouping is done. Can be 'domain', 'phylum', 'class', 'order', 'family', or 'genus'
     taxon_level = None
